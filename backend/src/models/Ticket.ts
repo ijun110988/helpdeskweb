@@ -1,5 +1,6 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, ManyToOne, JoinColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, ManyToOne, JoinColumn, OneToMany } from 'typeorm';
 import { User } from './User';
+import { TicketComment } from './TicketComment';
 
 @Entity()
 export class Ticket {
@@ -39,5 +40,7 @@ export class Ticket {
 
     @UpdateDateColumn()
     updatedAt!: Date;
-    comments: any;
+
+    @OneToMany(() => TicketComment, comment => comment.ticket, { cascade: true })
+    comments!: TicketComment[];
 }

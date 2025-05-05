@@ -31,12 +31,36 @@ export const getAllTickets = async (req: AuthRequest, res: Response) => {
             return res.status(403).json({ message: 'Akses ditolak' });
         }
 
+        const { status, priority, search } = req.query;
         const ticketRepository = getRepository(Ticket);
-        const tickets = await ticketRepository.find({
-            relations: ['user', 'assignedTo'],
-            order: { createdAt: 'DESC' },
-            select: ['id', 'title', 'description', 'status', 'priority', 'createdAt', 'updatedAt', 'user', 'assignedTo']
-        });
+        
+        // Membuat query builder
+        const queryBuilder = ticketRepository
+            .createQueryBuilder('ticket')
+            .leftJoinAndSelect('ticket.user', 'user')
+            .leftJoinAndSelect('ticket.assignedTo', 'assignedTo')
+            .orderBy('ticket.createdAt', 'DESC');
+
+        // Menambahkan filter status jika ada
+        if (status) {
+            queryBuilder.andWhere('ticket.status = :status', { status });
+        }
+
+        // Menambahkan filter prioritas jika ada
+        if (priority) {
+            queryBuilder.andWhere('ticket.priority = :priority', { priority });
+        }
+
+        // Menambahkan pencarian jika ada
+        if (search) {
+            const searchTerm = `%${search}%`;
+            queryBuilder.andWhere(
+                '(ticket.title LIKE :searchTerm OR user.firstName LIKE :searchTerm OR user.lastName LIKE :searchTerm OR CONCAT(user.firstName, " ", user.lastName) LIKE :searchTerm)',
+                { searchTerm }
+            );
+        }
+
+        const tickets = await queryBuilder.getMany();
 
         // Format response untuk menghindari circular JSON
         const formattedTickets = tickets.map(ticket => ({
@@ -58,8 +82,10 @@ export const getAllTickets = async (req: AuthRequest, res: Response) => {
                 firstName: ticket.assignedTo.firstName,
                 lastName: ticket.assignedTo.lastName,
                 email: ticket.assignedTo.email
-            } : null
+            } : null,
+            lastComment: ticket.lastComment // Menambahkan lastComment ke response
         }));
+
 
         res.json(formattedTickets);
     } catch (error) {
@@ -233,10 +259,68 @@ export const addComment = async (req: AuthRequest, res: Response) => {
         const { comment } = req.body;
         const ticketRepository = getRepository(Ticket);
         const commentRepository = getRepository(TicketComment);
+        const userRepository = getRepository(User);
 
-        const ticket = await ticketRepository.findOne({ where: { id: (ticketId) } });
+        // Cari tiket beserta relasinya
+        const ticket = await ticketRepository.findOne({ 
+            where: { id: ticketId },
+            relations: ['comments', 'user', 'assignedTo']
+        });
+        
         if (!ticket) {
             return res.status(404).json({ message: 'Tiket tidak ditemukan' });
+        }
+
+        // Pastikan req.user ada
+        if (!req.user) {
+            return res.status(401).json({ message: 'Unauthorized' });
+        }
+
+        // Dapatkan user yang akan membuat komentar
+        const user = await userRepository.findOne({ where: { id: req.user.id } });
+        if (!user) {
+            return res.status(404).json({ message: 'User tidak ditemukan' });
+        }
+
+        // Cek apakah komentar ini berasal dari update status
+        const isFromStatusUpdate = req.headers['x-comment-source'] === 'update-status';
+        
+        // Buat komentar baru
+        const newComment = new TicketComment();
+        newComment.comment = comment;
+        newComment.ticket = ticket;
+        newComment.user = user;
+        newComment.createdAt = new Date();
+
+        // Simpan komentar
+        await commentRepository.save(newComment);
+        
+        // Load relasi user untuk response
+        await commentRepository
+            .createQueryBuilder()
+            .relation(TicketComment, 'user')
+            .of(newComment)
+            .loadOne();
+        
+        // Jika komentar dari update status, cek dulu apakah sudah ada komentar yang sama
+        if (isFromStatusUpdate) {
+            const existingComment = await commentRepository.findOne({
+                where: {
+                    ticket: { id: ticketId },
+                    comment: comment,
+                    user: { id: req.user.id }
+                },
+                order: { createdAt: 'DESC' }
+            });
+
+            if (existingComment) {
+                console.log('Komentar duplikat dari update status, melewatkan penyimpanan');
+                return res.status(200).json({ 
+                    message: 'Komentar sudah ada', 
+                    comment: existingComment,
+                    isDuplicate: true
+                });
+            }
         }
 
         const newComment = commentRepository.create({
@@ -246,7 +330,17 @@ export const addComment = async (req: AuthRequest, res: Response) => {
         });
 
         await commentRepository.save(newComment);
-        res.status(201).json({ message: 'Komentar berhasil ditambahkan', comment: newComment });
+        console.log('Komentar baru disimpan:', { 
+            id: newComment.id, 
+            comment: newComment.comment,
+            source: isFromStatusUpdate ? 'update-status' : 'regular'
+        });
+        
+        res.status(201).json({ 
+            message: 'Komentar berhasil ditambahkan', 
+            comment: newComment,
+            isDuplicate: false
+        });
     } catch (error) {
         console.error('Error adding comment:', error);
         res.status(500).json({ message: 'Terjadi kesalahan saat menambahkan komentar' });

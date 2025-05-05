@@ -1,5 +1,6 @@
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, OneToMany } from 'typeorm';
 import { Ticket } from './Ticket';
+import { TicketComment } from './TicketComment';
 
 @Entity()
 export class User {
@@ -37,9 +38,11 @@ export class User {
     @UpdateDateColumn()
     updatedAt!: Date;
 
+    @OneToMany(() => TicketComment, comment => comment.user)
+    comments!: TicketComment[];
+
     // Virtual property untuk isAdmin
     get isAdmin(): boolean {
         return this.role === 'admin';
     }
-    comments: any;
 }
