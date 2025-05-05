@@ -264,7 +264,7 @@ export const addComment = async (req: AuthRequest, res: Response) => {
         // Cari tiket beserta relasinya
         const ticket = await ticketRepository.findOne({ 
             where: { id: ticketId },
-            relations: ['comments', 'user', 'assignedTo']
+            relations: ['user', 'assignedTo']
         });
         
         if (!ticket) {
@@ -284,23 +284,6 @@ export const addComment = async (req: AuthRequest, res: Response) => {
 
         // Cek apakah komentar ini berasal dari update status
         const isFromStatusUpdate = req.headers['x-comment-source'] === 'update-status';
-        
-        // Buat komentar baru
-        const newComment = new TicketComment();
-        newComment.comment = comment;
-        newComment.ticket = ticket;
-        newComment.user = user;
-        newComment.createdAt = new Date();
-
-        // Simpan komentar
-        await commentRepository.save(newComment);
-        
-        // Load relasi user untuk response
-        await commentRepository
-            .createQueryBuilder()
-            .relation(TicketComment, 'user')
-            .of(newComment)
-            .loadOne();
         
         // Jika komentar dari update status, cek dulu apakah sudah ada komentar yang sama
         if (isFromStatusUpdate) {
@@ -323,13 +306,23 @@ export const addComment = async (req: AuthRequest, res: Response) => {
             }
         }
 
-        const newComment = commentRepository.create({
-            comment,
-            ticket,
-            user: req.user
-        });
+        // Buat komentar baru
+        const newComment = new TicketComment();
+        newComment.comment = comment;
+        newComment.ticket = ticket;
+        newComment.user = user;
+        newComment.createdAt = new Date();
 
+        // Simpan komentar
         await commentRepository.save(newComment);
+        
+        // Load relasi user untuk response
+        await commentRepository
+            .createQueryBuilder()
+            .relation(TicketComment, 'user')
+            .of(newComment)
+            .loadOne();
+        
         console.log('Komentar baru disimpan:', { 
             id: newComment.id, 
             comment: newComment.comment,
