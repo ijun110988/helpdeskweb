@@ -99,18 +99,60 @@ export const getAllTickets = async (req: AuthRequest, res: Response) => {
 
 export const getTickets = async (req: AuthRequest, res: Response) => {
     try {
+        const { status, priority, search } = req.query;
         const ticketRepository = getRepository(Ticket);
-        const tickets = await ticketRepository.find({
-            where: { user: { id: req.user?.id } },
-            relations: ['user', 'assignedTo'],
-            order: { createdAt: 'DESC' }
-        });
+
+        // Membuat query builder
+        const queryBuilder = ticketRepository
+            .createQueryBuilder('ticket')
+            .leftJoinAndSelect('ticket.user', 'user')
+            .leftJoinAndSelect('ticket.assignedTo', 'assignedTo')
+            .where('user.id = :userId', { userId: req.user?.id })
+            .orderBy('ticket.createdAt', 'DESC');
+
+        // Filter status (jika ada)
+        if (status) {
+            queryBuilder.andWhere('ticket.status = :status', { status });
+        }
+
+        // Filter prioritas (jika ada)
+        if (priority) {
+            queryBuilder.andWhere('ticket.priority = :priority', { priority });
+        }
+
+        // Pencarian teks (jika ada)
+        if (search) {
+            const searchTerm = `%${search}%`;
+            queryBuilder.andWhere(
+                '(ticket.title LIKE :searchTerm OR ticket.description LIKE :searchTerm)',
+                { searchTerm }
+            );
+        }
+
+        const tickets = await queryBuilder.getMany();
+
         res.json(tickets);
     } catch (error) {
         console.error('Error getting tickets:', error);
         res.status(500).json({ message: 'Terjadi kesalahan saat mengambil tiket' });
     }
 };
+
+
+// export const getTickets = async (req: AuthRequest, res: Response) => {
+//     try {
+//         const ticketRepository = getRepository(Ticket);
+//         const tickets = await ticketRepository.find({
+//             where: { user: { id: req.user?.id } },
+//             relations: ['user', 'assignedTo'],
+//             order: { createdAt: 'DESC' }
+//         });
+//         res.json(tickets);
+//     } catch (error) {
+//         console.error('Error getting tickets:', error);
+//         res.status(500).json({ message: 'Terjadi kesalahan saat mengambil tiket' });
+//     }
+// };
 
 export const getTicketById = async (req: AuthRequest, res: Response) => {
     try {
