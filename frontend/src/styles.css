@@ -1,0 +1,68 @@
+.cursor-pointer {
+    cursor: pointer;
+}
+
+.hover-shadow {
+    transition: box-shadow 0.3s ease-in-out;
+}
+
+.hover-shadow:hover {
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+}
+
+.app-container {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.main-content {
+    flex: 1;
+    padding: 2rem;
+}
+
+/* Penyesuaian untuk tampilan mobile */
+@media (max-width: 991.98px) {
+    .main-content {
+        padding: 1rem;
+        padding-bottom: 5rem; /* Ruang untuk bottom navigation */
+    }
+}
+
+/* Gaya untuk bottom navigation */
+.fixed-bottom {
+    transition: transform 0.3s ease-in-out;
+}
+
+.fixed-bottom.hidden {
+    transform: translateY(100%);
+}
+
+/* Gaya untuk sidebar */
+.sidebar-container {
+    transition: width 0.3s ease-in-out;
+}
+
+@media (min-width: 992px) {
+    .sidebar-container {
+        min-width: 250px;
+    }
+}
+
+/* Gaya untuk form */
+.form-control:focus,
+.form-select:focus {
+    border-color: #80bdff;
+    box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+}
+
+/* Gaya untuk card */
+.card {
+    border-radius: 0.5rem;
+    border: none;
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+}
+
+.card-body {
+    padding: 1.5rem;
+}
